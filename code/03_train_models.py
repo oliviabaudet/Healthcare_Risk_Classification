@@ -10,6 +10,7 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.pipeline import Pipeline
 from sklearn.tree import DecisionTreeClassifier
+from sklearn.base import clone
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -60,7 +61,7 @@ def main():
     args.output.mkdir(parents=True, exist_ok=True)
     for name, classifier in models.items():
         pipeline = Pipeline([
-            ("preprocessor", preprocessor),
+            ("preprocessor", clone(preprocessor)),
             ("classifier", classifier),
         ])
         pipeline.fit(X_train, y_train)

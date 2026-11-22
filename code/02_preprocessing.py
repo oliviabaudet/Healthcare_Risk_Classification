@@ -67,17 +67,14 @@ def build_preprocessor(X):
     # TODO: Add any feature-subset decision supported by EDA and evidence.
     numerical_features = X.select_dtypes(include=["number"]).columns.tolist()
     categorical_features = X.select_dtypes(
-        include=["object", "category", "bool"]
+        include=["object", "category", "bool", "string"]
     ).columns.tolist()
 
     numerical_steps = [
         ("imputer", SimpleImputer(strategy="median")),
+        ("scaler", StandardScaler()),
     ]
-    # Standard scaling is fitted here and used only for pipelines that need it.
-    numerical_scaled = Pipeline(
-        numerical_steps + [("scaler", StandardScaler())]
-    )
-    numerical_passthrough = Pipeline(numerical_steps)
+    numerical_pipeline = Pipeline(numerical_steps)
 
     categorical_pipeline = Pipeline([
         ("imputer", SimpleImputer(strategy="most_frequent")),
@@ -85,8 +82,7 @@ def build_preprocessor(X):
     ])
 
     return ColumnTransformer([
-        ("numeric_scaled", numerical_scaled, numerical_features),
-        ("numeric_passthrough", numerical_passthrough, numerical_features),
+        ("numeric", numerical_pipeline, numerical_features),
         ("categorical", categorical_pipeline, categorical_features),
     ])
 
