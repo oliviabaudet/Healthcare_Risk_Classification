@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# IDE settings
+.idea/
+
+# Local data files (download separately)
+data/*.csv
+data/*.zip
+
+# Generated models / temporary files
+*.joblib
+*.pkl
+*.tmp
