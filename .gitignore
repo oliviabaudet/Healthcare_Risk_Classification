@@ -1,0 +1,42 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Testing and coverage
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# Local environment and IDE files
+.env
+.env.*
+.vscode/
+.idea/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Build and packaging outputs
+build/
+dist/
+*.egg-info/
+
+# Dataset and generated artifacts
+data/*.csv
+data/*.xlsx
+data/*.xls
+data/*.parquet
+results/*.csv
+results/*.json
+results/*.npy
+results/*.joblib
+results/*.pkl
