@@ -375,5 +375,3 @@ Provenance of the figures:
 | Tuned models, thresholds, baseline KNN | `results/tuned_comparison.csv`, `results/best_params.json`, `results/thresholds.json` |
 | Protocol (n_iter = min(8, grid), 5 folds, grids, `max_depth=12`, etc.) | `code/02_preprocessing.py`, `code/03_train_models.py`, `code/07_cv_tuning.py` |
 | Approximate importances (RF) and description of the figures | Visual reading of the PNG files in `results/figures/` |
-
-Items not taken from result files: RF importance values read from the chart, Strack et al. reference cited from memory.
