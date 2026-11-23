@@ -1,0 +1,4 @@
+cluster,size,readmission_rate,time_in_hospital,num_lab_procedures,num_procedures,num_medications,number_outpatient,number_emergency,number_inpatient,number_diagnoses
+0,56019,0.0921,2.9704,36.8867,0.9193,12.1739,0.0794,0.0372,0.355,6.752
+1,14140,0.1707,3.9905,42.2566,0.9293,16.379,2.0498,1.1298,1.7755,8.1351
+2,29184,0.1282,7.2721,54.778,2.3269,23.0894,0.1113,0.0567,0.6061,8.2935

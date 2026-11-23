@@ -1,0 +1,117 @@
+Exploratory, full file (all 101,766 stays, including the 2,423 death/hospice stays excluded from classification)
+Rows: 101766
+Global <30 readmission rate: 0.1116 (11357 rows)
+
+MISSING % (columns > 0 %)
+weight               96.86
+max_glu_serum        94.75
+A1Cresult            83.28
+medical_specialty    49.08
+payer_code           39.56
+race                  2.23
+diag_3                1.40
+diag_2                0.35
+diag_1                0.02
+
+READMISSION <30 RATE BY MODALITY (top 10 by count)
+
+age
+           size  rate_pct
+age                      
+[0-10)      161      1.86
+[10-20)     691      5.79
+[50-60)   17256      9.67
+[40-50)    9685     10.60
+[90-100)   2793     11.10
+[60-70)   22483     11.13
+[30-40)    3775     11.23
+[70-80)   26068     11.77
+[80-90)   17197     12.08
+[20-30)    1657     14.24
+
+race
+                  size  rate_pct
+race                            
+Missing           2273      8.27
+Other             1506      9.63
+Asian              641     10.14
+Hispanic          2037     10.41
+AfricanAmerican  19210     11.22
+Caucasian        76099     11.29
+
+gender
+                  size  rate_pct
+gender                          
+Unknown/Invalid      3      0.00
+Male             47055     11.06
+Female           54708     11.25
+
+A1Cresult
+            size  rate_pct
+A1Cresult                 
+Norm        4990      9.66
+>8          8216      9.87
+>7          3812     10.05
+Missing    84748     11.42
+
+insulin
+          size  rate_pct
+insulin                 
+No       47383     10.04
+Steady   30849     11.13
+Up       11316     12.99
+Down     12218     13.90
+
+change
+         size  rate_pct
+change                 
+No      54755     10.59
+Ch      47011     11.82
+
+diabetesMed
+              size  rate_pct
+diabetesMed                 
+No           23403      9.60
+Yes          78363     11.63
+
+admission_type_id
+                    size  rate_pct
+admission_type_id                 
+7                     21      0.00
+8                    320      8.44
+4                     10     10.00
+5                   4785     10.34
+3                  18869     10.39
+6                   5291     11.08
+2                  18480     11.18
+1                  53990     11.52
+
+discharge_disposition_id
+                           size  rate_pct
+discharge_disposition_id                 
+11                         1642      0.00
+1                         60234      9.30
+25                          989      9.30
+18                         3691     12.44
+6                         12902     12.70
+4                           815     12.76
+3                         13954     14.66
+2                          2128     16.07
+5                          1184     20.86
+22                         1993     27.70
+
+CORRELATION WITH TARGET (sorted by |r|)
+number_inpatient      0.1651
+number_emergency      0.0607
+number_diagnoses      0.0495
+time_in_hospital      0.0442
+num_medications       0.0384
+num_lab_procedures    0.0204
+number_outpatient     0.0189
+num_procedures       -0.0122
+
+PATIENTS
+Encounters: 101766
+Unique patients: 71518
+Patients with >1 encounter: 16773
+Rows whose patient_nbr appears more than once: 47021

@@ -1,0 +1,35 @@
+{
+  "Logistic Regression": {
+    "C": 0.01,
+    "search_average_precision": 0.20125425264724348,
+    "search_rows": 26514
+  },
+  "Decision Tree": {
+    "min_samples_leaf": 200,
+    "max_depth": 8,
+    "search_average_precision": 0.1899724600024096,
+    "search_rows": 26514
+  },
+  "Random Forest": {
+    "n_estimators": 200,
+    "min_samples_leaf": 5,
+    "max_features": 0.1,
+    "max_depth": 18,
+    "search_average_precision": 0.2006097657023417,
+    "search_rows": 26514
+  },
+  "KNN": {
+    "weights": "distance",
+    "n_neighbors": 101,
+    "search_average_precision": 0.20361525036437683,
+    "search_rows": 20000
+  },
+  "Hist Gradient Boosting": {
+    "max_leaf_nodes": 15,
+    "max_iter": 100,
+    "learning_rate": 0.05,
+    "l2_regularization": 10.0,
+    "search_average_precision": 0.21176981569199388,
+    "search_rows": 26514
+  }
+}

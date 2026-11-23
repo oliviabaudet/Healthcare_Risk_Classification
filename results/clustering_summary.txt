@@ -1,0 +1,11 @@
+EXPLORATORY analysis on the filtered population of the classifiers (99,343 stays, train and test rows included, death/hospice discharges excluded); it does not feed the classifiers.
+Features: ['time_in_hospital', 'num_lab_procedures', 'num_procedures', 'num_medications', 'number_outpatient', 'number_emergency', 'number_inpatient', 'number_diagnoses']; log1p applied to ['num_procedures', 'number_outpatient', 'number_emergency', 'number_inpatient'] before StandardScaler.
+PCA variance per component (%): [25.5, 18.2, 12.6, 11.0, 10.0, 9.1, 7.7, 5.9]
+PCA cumulative (%): [25.5, 43.6, 56.2, 67.2, 77.3, 86.3, 94.1, 100.0]
+Silhouette on a 10,000-row sample; k=2 nearly tied with k=3 when it is. Silhouette by k: k=2: 0.182, k=3: 0.187, k=4: 0.154, k=5: 0.161, k=6: 0.161, k=7: 0.165, k=8: 0.159
+Inertia relative drop: 2->3: 12.4%, 3->4: 9.6%, 4->5: 9.8%, 5->6: 7.4%, 6->7: 6.9%, 7->8: 4.9%
+Retained k = 3 (highest silhouette = 0.187; inspect the elbow drops above)
+Global readmission rate: 0.1139
+Readmission rate per cluster: 0: 0.0921 (n=56019), 1: 0.1707 (n=14140), 2: 0.1282 (n=29184)
+Relative risk (max/min cluster rate): 1.85 (descriptive only: no confidence interval, and stays are not independent since patients can have several stays)
+Result: clusters differ in readmission rate (max/min = 1.85 > 1.25); silhouette 0.187 is low (< 0.25): clusters are weakly separated.

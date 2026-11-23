@@ -1,0 +1,7 @@
+{
+  "Logistic Regression": 0.5205768378488473,
+  "Decision Tree": 0.5486216002884455,
+  "Random Forest": 0.5155064597436906,
+  "KNN": 0.1173034086525421,
+  "Hist Gradient Boosting": 0.5354060898228817
+}
