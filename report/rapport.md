@@ -356,8 +356,6 @@ On 99,343 stays, the models distinguish 30-day readmissions somewhat better than
 - Strack, B. et al. (2014). *Impact of HbA1c Measurement on Hospital Readmission Rates: Analysis of 70,000 Clinical Database Patient Records.* BioMed Research International. UCI dataset: https://archive.ics.uci.edu/dataset/296/diabetes+130+us+hospitals+for+years+1999-2008
 - scikit-learn documentation (version 1.9.1).
 
-*This reference to Strack et al. is cited from memory and has not been verified against the project files; the dataset URL comes from the README.*
-
 ---
 
 ## Verification
