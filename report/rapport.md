@@ -1,162 +1,162 @@
-# Prédiction de la réadmission à 30 jours de patients diabétiques
+# Predicting 30-day readmission of diabetic patients
 
-Projet du cours Machine Learning - Paolo, Granace et Olivia
+Course project: TI508M/TI608M, Introduction to Machine Learning. Authors: Olivia Baudet, Paolo, Garance.
 
-Projet à but pédagogique : ce n'est pas un outil médical validé.
+Educational project: this is not a validated medical tool.
 
-Table des matières : 1 Introduction · 2 Données · 3 Exploration · 4 Prétraitement · 5 Méthodes · 6 Protocole d'évaluation · 7 Résultats · 8 Discussion · 9 Limites et éthique · 10 Recommandations · 11 Reproductibilité · Annexe · Vérifications
-
----
-
-## 1. Introduction et question de recherche
-
-**Contexte.** Les réadmissions hospitalières rapprochées sont un enjeu de qualité des soins. Nous utilisons le jeu public UCI « Diabetes 130-US hospitals for years 1999-2008 ».
-
-**Question.** Les informations disponibles sur un séjour hospitalier d'un patient diabétique permettent-elles de prédire une réadmission dans les 30 jours suivant la sortie ?
-
-**Formulation retenue : classification binaire supervisée.** La cible vaut 1 si `readmitted` = `<30`, et 0 si `>30` ou `NO`. La classe positive (1) est la réadmission à moins de 30 jours.
-
-**Pourquoi pas du clustering (K-Means + PCA) ?** Nous l'avons testé en analyse exploratoire (`code/06_pca_kmeans.py`, population filtrée de 99 343 séjours, train et test confondus ; K-Means k=3 sur 8 variables numériques standardisées, `log1p` sur 4 variables de comptage puis `StandardScaler` ; la PCA sert à mesurer la variance et à visualiser les clusters en 2D ; silhouette calculée sur 10 000 séjours). Résultats (`results/clustering_summary.txt`) :
-
-- La PCA n'est pas très compacte : la 1re composante porte 25,5 % de la variance, les deux premières 43,6 %, et il faut 5 composantes pour 77,3 %.
-- Silhouette (échantillon de 10 000 lignes) : 0,182 (k=2), 0,187 (k=3), 0,154 (k=4), 0,161 (k=5), 0,161 (k=6), 0,165 (k=7), 0,159 (k=8). Le maximum, 0,187 (k=3), reste faible (< 0,25 selon le script) : les clusters sont faiblement séparés.
-- Les clusters diffèrent pourtant par leur taux de réadmission : cluster 0 : 0,092 (n=56 019), cluster 1 : 0,171 (n=14 140), cluster 2 : 0,128 (n=29 184), pour un taux global de 0,114. Le rapport max/min vaut 1,85 (descriptif, sans intervalle de confiance, séjours non indépendants).
-
-Le clustering contient donc un signal (le cluster 1 combine beaucoup de visites antérieures, en urgence, en consultation externe et en hospitalisation), mais il ne sépare pas nettement les patients. Comme nous disposons d'une étiquette fiable, un apprentissage supervisé est plus adapté pour prédire la réadmission. Le clustering reste un outil de description.
-
-![Projection PCA colorée par cluster K-Means (k=3)](../results/figures/kmeans_clusters_pca.png)
-
-*Figure 1 — Les trois clusters forment des régions contiguës, sans séparation nette dans le plan (PC1, PC2) ; seule la zone de PC2 élevé est un peu plus isolée.*
+Contents: 1 Introduction · 2 Data · 3 Exploration · 4 Preprocessing · 5 Methods · 6 Evaluation protocol · 7 Results · 8 Discussion · 9 Limitations and ethics · 10 Recommendations · 11 Reproducibility · Appendix · Verification
 
 ---
 
-## 2. Données
+## 1. Introduction and research question
 
-- **Source** : UCI Machine Learning Repository, dataset 296 (fichier `diabetic_data.csv`, non versionné ; `?` traité comme valeur manquante).
-- **Taille** : 101 766 séjours, 71 518 patients uniques. 16 773 patients ont plus d'un séjour ; 47 021 lignes appartiennent à un `patient_nbr` qui apparaît plus d'une fois (`eda_summary.txt`). Les séjours ne sont donc pas indépendants.
-- **Prévalence sur le fichier complet** : 11 357 réadmissions < 30 jours, soit 0,1116 (11,16 %). La cible est déséquilibrée.
-- **Valeurs manquantes (% du fichier complet)** : `weight` 96,86 ; `max_glu_serum` 94,75 ; `A1Cresult` 83,28 ; `medical_specialty` 49,08 ; `payer_code` 39,56 ; `race` 2,23 ; `diag_3` 1,40 ; `diag_2` 0,35 ; `diag_1` 0,02.
-- **Exclusion pour la classification** : 2 423 séjours terminés par un décès ou un transfert en hospice (`discharge_disposition_id` ∈ {11, 13, 14, 19, 20, 21}), pour lesquels une réadmission est impossible ou non pertinente (`code/02_preprocessing.py`). Il reste 99 343 séjours (101 766 − 2 423).
-- **Découpage** : entraînement 79 541 lignes, test 19 802 lignes. Part de réadmissions : 0,114 (train, 9 098 positifs) et 0,112 (test, 2 216 positifs), calculées à partir de `y_train.csv` et `y_test.csv`.
-- **Identifiants** : `encounter_id` et `patient_nbr` ne sont pas utilisés comme variables explicatives ; `patient_nbr` sert uniquement à regrouper les séjours d'un même patient.
+**Context.** Early hospital readmissions are a quality-of-care issue. We use the public UCI dataset "Diabetes 130-US hospitals for years 1999-2008".
 
-Le taux de 0,1139 du clustering est calculé sur la population filtrée (99 343 séjours), celui de 0,1116 sur le fichier complet.
+**Question.** Can the information available about a hospital stay of a diabetic patient predict a readmission within 30 days after discharge?
+
+**Chosen formulation: supervised binary classification.** The target is 1 if `readmitted` = `<30`, and 0 if `>30` or `NO`. The positive class (1) is 30-day readmission.
+
+**Why not clustering (K-Means + PCA)?** We tested it as an exploratory analysis (`code/06_pca_kmeans.py`, filtered population of 99,343 stays, train and test combined; K-Means with k=3 on 8 standardized numeric variables, `log1p` on 4 count variables followed by `StandardScaler`; PCA is used to measure variance and to visualize the clusters in 2D; silhouette computed on 10,000 stays). Results (`results/clustering_summary.txt`):
+
+- The PCA is not very compact: the 1st component carries 25.5% of the variance, the first two 43.6%, and 5 components are needed to reach 77.3%.
+- Silhouette (sample of 10,000 rows): 0.182 (k=2), 0.187 (k=3), 0.154 (k=4), 0.161 (k=5), 0.161 (k=6), 0.165 (k=7), 0.159 (k=8). The maximum, 0.187 (k=3), remains low (< 0.25 according to the script): the clusters are weakly separated.
+- The clusters nevertheless differ in readmission rate: cluster 0: 0.092 (n = 56,019), cluster 1: 0.171 (n = 14,140), cluster 2: 0.128 (n = 29,184), for a global rate of 0.114. The max/min ratio is 1.85 (descriptive only, no confidence interval, stays not independent).
+
+Clustering therefore contains a signal (cluster 1 combines many prior outpatient, emergency and inpatient visits), but it does not separate patients clearly. Since we have a reliable label, supervised learning is better suited to predict readmission. Clustering remains a descriptive tool.
+
+![PCA projection colored by K-Means cluster (k=3)](../results/figures/kmeans_clusters_pca.png)
+
+*Figure 1 — The three clusters form contiguous regions, with no clear separation in the (PC1, PC2) plane; only the high-PC2 zone is somewhat more isolated.*
 
 ---
 
-## 3. Analyse exploratoire (EDA)
+## 2. Data
 
-L'EDA (`code/01_explore_data.py`, `results/eda_summary.txt`) porte sur le fichier complet.
+- **Source**: UCI Machine Learning Repository, dataset 296 (file `diabetic_data.csv`, not versioned; `?` treated as a missing value).
+- **Size**: 101,766 stays, 71,518 unique patients. 16,773 patients have more than one stay; 47,021 rows belong to a `patient_nbr` that appears more than once (`eda_summary.txt`). Stays are therefore not independent.
+- **Prevalence on the full file**: 11,357 readmissions < 30 days, i.e. 0.1116 (11.16%). The target is imbalanced.
+- **Missing values (% of the full file)**: `weight` 96.86; `max_glu_serum` 94.75; `A1Cresult` 83.28; `medical_specialty` 49.08; `payer_code` 39.56; `race` 2.23; `diag_3` 1.40; `diag_2` 0.35; `diag_1` 0.02.
+- **Exclusion for classification**: 2,423 stays ending in death or transfer to hospice (`discharge_disposition_id` ∈ {11, 13, 14, 19, 20, 21}), for which readmission is impossible or not meaningful (`code/02_preprocessing.py`). 99,343 stays remain (101,766 − 2,423).
+- **Split**: training 79,541 rows, test 19,802 rows. Readmission share: 0.114 (train, 9,098 positives) and 0.112 (test, 2,216 positives), computed from `y_train.csv` and `y_test.csv`.
+- **Identifiers**: `encounter_id` and `patient_nbr` are not used as predictive features; `patient_nbr` is used only to group the stays of the same patient.
 
-**Corrélations avec la cible (Pearson).** Elles sont toutes faibles : `number_inpatient` 0,165 (en tête), `number_emergency` 0,061, `number_diagnoses` 0,050, `time_in_hospital` 0,044, `num_medications` 0,038, `num_lab_procedures` 0,020, `number_outpatient` 0,019, `num_procedures` −0,012. La matrice montre aussi des corrélations modérées entre variables explicatives (par exemple `time_in_hospital` et `num_medications` : 0,47 sur la figure). Aucune variable numérique n'est fortement liée à la cible : on s'attend à des performances modestes.
+The 0.1139 rate in the clustering is computed on the filtered population (99,343 stays), the 0.1116 rate on the full file.
 
-![Corrélations](../results/figures/eda_correlation_heatmap.png)
+---
 
-*Figure 2 — Matrice de corrélation des variables numériques et de la cible ; la ligne « target » est presque uniformément proche de 0, sauf `number_inpatient`.*
+## 3. Exploratory data analysis (EDA)
 
-**Taux de réadmission < 30 j par modalité** (`eda_summary.txt`) :
+The EDA (`code/01_explore_data.py`, `results/eda_summary.txt`) covers the full file.
 
-| Variable | Modalités notables (taux en %) |
+**Correlations with the target (Pearson).** All are weak: `number_inpatient` 0.165 (highest), `number_emergency` 0.061, `number_diagnoses` 0.050, `time_in_hospital` 0.044, `num_medications` 0.038, `num_lab_procedures` 0.020, `number_outpatient` 0.019, `num_procedures` −0.012. The matrix also shows moderate correlations among predictors (for example `time_in_hospital` and `num_medications`: 0.47 in the figure). No numeric variable is strongly related to the target: modest performance is to be expected.
+
+![Correlations](../results/figures/eda_correlation_heatmap.png)
+
+*Figure 2 — Correlation matrix of the numeric variables and the target; the "target" row is almost uniformly close to 0, except for `number_inpatient`.*
+
+**30-day readmission rate by category** (`eda_summary.txt`):
+
+| Variable | Notable categories (rate in %) |
 |---|---|
-| `insulin` | No 10,04 ; Steady 11,13 ; Up 12,99 ; Down 13,90 |
-| `diabetesMed` | No 9,60 ; Yes 11,63 |
-| `change` | No 10,59 ; Ch 11,82 |
-| `discharge_disposition_id` | 1 : 9,30 ; 3 : 14,66 ; 2 : 16,07 ; 5 : 20,86 ; 22 : 27,70 (11 : 0,00, séjours exclus ensuite) |
-| `age` | [0-10) 1,86 (n=161) ; [20-30) 14,24 (n=1 657) ; [80-90) 12,08 ; [50-60) 9,67 |
-| `race` | Missing 8,27 ; Caucasian 11,29 ; AfricanAmerican 11,22 |
-| `gender` | Male 11,06 ; Female 11,25 |
-| `A1Cresult` | Norm 9,66 ; >8 9,87 ; >7 10,05 ; Missing 11,42 |
+| `insulin` | No 10.04; Steady 11.13; Up 12.99; Down 13.90 |
+| `diabetesMed` | No 9.60; Yes 11.63 |
+| `change` | No 10.59; Ch 11.82 |
+| `discharge_disposition_id` | 1: 9.30; 3: 14.66; 2: 16.07; 5: 20.86; 22: 27.70 (11: 0.00, stays excluded afterwards) |
+| `age` | [0-10) 1.86 (n = 161); [20-30) 14.24 (n = 1,657); [80-90) 12.08; [50-60) 9.67 |
+| `race` | Missing 8.27; Caucasian 11.29; AfricanAmerican 11.22 |
+| `gender` | Male 11.06; Female 11.25 |
+| `A1Cresult` | Norm 9.66; >8 9.87; >7 10.05; Missing 11.42 |
 
-Les écarts les plus nets concernent le mode de sortie (`discharge_disposition_id`), le traitement à l'insuline et quelques tranches d'âge. Les tranches d'âge jeunes ([0-10) n=161, [10-20) n=691, [20-30) n=1 657) ont de petits effectifs : à interpréter avec prudence. Les écarts selon le sexe ou la race sont faibles.
+The clearest differences concern the discharge disposition (`discharge_disposition_id`), insulin treatment and a few age groups. The young age groups ([0-10) n = 161, [10-20) n = 691, [20-30) n = 1,657) have small sample sizes: interpret with caution. Differences by gender or race are small.
 
-![Taux par catégorie](../results/figures/eda_rate_by_category.png)
+![Rate by category](../results/figures/eda_rate_by_category.png)
 
-*Figure 3 — Taux de réadmission < 30 j par modalité pour les variables catégorielles.*
+*Figure 3 — 30-day readmission rate by category for the categorical variables.*
 
-D'autres figures de l'EDA sont disponibles : `eda_missing_values.png`, `eda_numeric_by_target.png`, `readmission_distribution.png`.
+Other EDA figures are available: `eda_missing_values.png`, `eda_numeric_by_target.png`, `readmission_distribution.png`.
 
-**PCA.** Voir section 1 : sur 8 variables numériques, la variance est répartie sur de nombreuses composantes (25,5 ; 18,2 ; 12,6 ; 11,0 ; 10,0 ; 9,1 ; 7,7 ; 5,9 %), ce qui confirme que ces variables apportent des informations assez distinctes et qu'une réduction forte de dimension n'est pas possible sans perte.
+**PCA.** See section 1: on 8 numeric variables, the variance is spread over many components (25.5; 18.2; 12.6; 11.0; 10.0; 9.1; 7.7; 5.9%), which confirms that these variables carry fairly distinct information and that strong dimensionality reduction is not possible without loss.
 
-![Variance expliquée par la PCA](../results/figures/pca_explained_variance.png)
+![Variance explained by the PCA](../results/figures/pca_explained_variance.png)
 
-*Figure 4 — Variance expliquée par composante (valeurs numériques dans `clustering_summary.txt`).*
-
----
-
-## 4. Prétraitement
-
-Le prétraitement est défini dans `code/02_preprocessing.py` et `code/03_train_models.py`.
-
-1. **Filtrage** des 2 423 séjours décès/hospice (section 2).
-2. **Découpage train/test groupé par patient** : `GroupShuffleSplit` (test = 20 %, `random_state=42`) avec `patient_nbr` comme groupe. *Pourquoi :* un patient a souvent plusieurs séjours très semblables ; s'ils étaient répartis entre train et test, le modèle pourrait « reconnaître » le patient et le score serait gonflé (fuite de données).
-3. **Variables numériques** : imputation par la médiane, puis `StandardScaler`.
-4. **Variables catégorielles** (y compris `admission_type_id`, `discharge_disposition_id`, `admission_source_id`, qui sont des codes et non des mesures) : imputation par la valeur la plus fréquente, puis encodage one-hot (`handle_unknown="ignore"`).
-5. **Tout est ajusté sur le train uniquement**, dans des `Pipeline` scikit-learn, pour éviter toute fuite vers le test.
-6. **Déséquilibre des classes** : `class_weight="balanced"` pour la régression logistique, l'arbre, la forêt et HistGradientBoosting. KNN ne supporte pas cette option dans scikit-learn.
-
-Les clusters (section 1) utilisent un prétraitement distinct (`log1p` + `StandardScaler` sur 8 variables numériques).
+*Figure 4 — Variance explained per component (numerical values in `clustering_summary.txt`).*
 
 ---
 
-## 5. Méthodes
+## 4. Preprocessing
 
-Le projet encourage explicitement les techniques hors cours ; nous les utilisons et les expliquons.
+Preprocessing is defined in `code/02_preprocessing.py` and `code/03_train_models.py`.
 
-| Méthode | Vue au cours ? | Rôle dans le projet |
+1. **Filtering** of the 2,423 death/hospice stays (section 2).
+2. **Patient-grouped train/test split**: `GroupShuffleSplit` (test = 20%, `random_state=42`) with `patient_nbr` as the group. *Why:* a patient often has several very similar stays; if they were spread across train and test, the model could "recognize" the patient and the score would be inflated (data leakage).
+3. **Numeric variables**: median imputation, then `StandardScaler`.
+4. **Categorical variables** (including `admission_type_id`, `discharge_disposition_id`, `admission_source_id`, which are codes and not measurements): most-frequent-value imputation, then one-hot encoding (`handle_unknown="ignore"`).
+5. **Everything is fitted on the training set only**, inside scikit-learn `Pipeline` objects, to avoid any leakage to the test set.
+6. **Class imbalance**: `class_weight="balanced"` for logistic regression, the decision tree, the random forest and HistGradientBoosting. KNN does not support this option in scikit-learn.
+
+The clusters (section 1) use a separate preprocessing (`log1p` + `StandardScaler` on 8 numeric variables).
+
+---
+
+## 5. Methods
+
+The project explicitly encourages techniques not covered in class; we use them and explain them.
+
+| Method | Covered in class? | Role in the project |
 |---|---|---|
-| `StandardScaler` | Oui | Mise à l'échelle des variables numériques |
-| KNN | Oui, en régression seulement | Utilisé ici en classification (hors cours) |
-| K-Means | Oui | Clustering exploratoire (k=3) |
-| PCA | Oui | Projection et variance expliquée (exploration) |
-| Silhouette | Oui | Choix de k et qualité des clusters |
-| Train / validation / test | Oui (notion) | Découpage ; la validation est faite par CV sur le train |
-| Validation croisée | Mentionnée | Estimer la variabilité des scores (5 plis) |
-| Régression logistique | Non | Modèle linéaire de référence |
-| Arbre de décision | Non | Modèle interprétable, non linéaire |
-| Forêt aléatoire | Non | Ensemble d'arbres |
-| HistGradientBoosting | Non | Boosting d'arbres |
-| Matrice de confusion, précision / rappel / F1 | Non | Métriques de classification |
-| ROC-AUC, PR-AUC | Non | Métriques indépendantes du seuil |
-| `GroupKFold` | Non | CV sans partage de patient entre plis |
-| `RandomizedSearchCV` | Non | Réglage des hyperparamètres |
-| `class_weight` | Non | Compenser le déséquilibre |
-| Seuil de décision | Non | Compromis précision / rappel |
-| One-hot, imputation | Non | Préparation des variables |
+| `StandardScaler` | Yes | Scaling of numeric variables |
+| KNN | Yes, for regression only | Used here for classification (not covered in class) |
+| K-Means | Yes | Exploratory clustering (k=3) |
+| PCA | Yes | Projection and explained variance (exploration) |
+| Silhouette | Yes | Choice of k and cluster quality |
+| Train / validation / test | Yes (concept) | Split; validation is done by CV on the training set |
+| Cross-validation | Mentioned | Estimate the variability of scores (5 folds) |
+| Logistic regression | No | Linear baseline model |
+| Decision tree | No | Interpretable, non-linear model |
+| Random forest | No | Ensemble of trees |
+| HistGradientBoosting | No | Tree boosting |
+| Confusion matrix, precision / recall / F1 | No | Classification metrics |
+| ROC-AUC, PR-AUC | No | Threshold-independent metrics |
+| `GroupKFold` | No | CV without sharing patients across folds |
+| `RandomizedSearchCV` | No | Hyperparameter tuning |
+| `class_weight` | No | Compensate for imbalance |
+| Decision threshold | No | Precision / recall trade-off |
+| One-hot, imputation | No | Feature preparation |
 
-**Explications des notions hors cours.**
+**Explanations of the notions not covered in class.**
 
-- **Régression logistique** : modèle linéaire qui estime une probabilité de réadmission à partir d'une combinaison pondérée des variables. Le paramètre `C` règle la régularisation (plus `C` est petit, plus le modèle est contraint).
-- **Arbre de décision** : suite de questions « variable > seuil ? » qui découpe les données ; sa profondeur (`max_depth`) et la taille minimale des feuilles (`min_samples_leaf`) limitent le sur-apprentissage.
-- **Forêt aléatoire** : moyenne de nombreux arbres entraînés sur des échantillons et des sous-ensembles de variables différents ; réduit la variance d'un arbre unique.
-- **HistGradientBoosting** : arbres construits successivement, chacun corrigeant les erreurs des précédents ; les variables sont discrétisées en histogrammes pour accélérer le calcul.
-- **KNN en classification** : prédit à partir de la classe des k plus proches voisins ; coûteux sur environ 2 400 colonnes (après one-hot).
-- **Matrice de confusion** : table des vrais/faux positifs et négatifs. **Précision** = part des alertes qui sont de vrais cas ; **rappel** = part des vrais cas détectés ; **F1** = moyenne harmonique des deux.
-- **ROC-AUC** : probabilité qu'un cas positif reçoive un score supérieur à un cas négatif (0,5 = hasard). **PR-AUC** (précision moyenne) : aire sous la courbe précision-rappel ; plus informative quand la classe positive est rare (une prédiction aléatoire a pour PR-AUC la prévalence, environ 0,11).
-- **`GroupKFold`** : validation croisée où tous les séjours d'un même patient restent dans le même pli.
-- **`RandomizedSearchCV`** : teste un nombre fixé de combinaisons d'hyperparamètres tirées dans une grille et les évalue par CV.
-- **`class_weight="balanced"`** : pondère davantage les erreurs sur la classe rare.
-- **Seuil de décision** : valeur de probabilité au-dessus de laquelle on prédit 1 ; 0,5 par défaut mais modifiable.
-- **One-hot** : une colonne 0/1 par modalité. **Imputation** : remplacement des valeurs manquantes par une valeur estimée (médiane ou valeur la plus fréquente).
+- **Logistic regression**: linear model that estimates a readmission probability from a weighted combination of the features. The parameter `C` controls regularization (the smaller `C`, the more constrained the model).
+- **Decision tree**: sequence of questions "feature > threshold?" that splits the data; its depth (`max_depth`) and minimum leaf size (`min_samples_leaf`) limit overfitting.
+- **Random forest**: average of many trees trained on different samples and feature subsets; reduces the variance of a single tree.
+- **HistGradientBoosting**: trees built one after another, each correcting the errors of the previous ones; features are binned into histograms to speed up computation.
+- **KNN for classification**: predicts from the class of the k nearest neighbors; costly with about 2,400 columns (after one-hot encoding).
+- **Confusion matrix**: table of true/false positives and negatives. **Precision** = share of alerts that are true cases; **recall** = share of true cases detected; **F1** = harmonic mean of the two.
+- **ROC-AUC**: probability that a positive case receives a higher score than a negative case (0.5 = chance). **PR-AUC** (average precision): area under the precision-recall curve; more informative when the positive class is rare (a random prediction has a PR-AUC equal to the prevalence, about 0.11).
+- **`GroupKFold`**: cross-validation where all stays of the same patient remain in the same fold.
+- **`RandomizedSearchCV`**: tries a fixed number of hyperparameter combinations drawn from a grid and evaluates them by CV.
+- **`class_weight="balanced"`**: gives more weight to errors on the rare class.
+- **Decision threshold**: probability value above which 1 is predicted; 0.5 by default but adjustable.
+- **One-hot**: one 0/1 column per category. **Imputation**: replacement of missing values by an estimated value (median or most frequent value).
 
-**Modèles et configuration de base** (`code/03_train_models.py`) : régression logistique (`max_iter=1000`, C=1 par défaut), arbre (`max_depth=12`), forêt (100 arbres, `max_depth=18`), KNN (k=5), HistGradientBoosting (paramètres par défaut, `early_stopping=False`) ; `random_state=42`.
-
----
-
-## 6. Protocole d'évaluation
-
-1. **Un seul découpage test (20 %, groupé par patient)**, jamais utilisé pour choisir un modèle, un hyperparamètre ou un seuil.
-2. **Validation croisée `GroupKFold` à 5 plis sur le train des modèles de base (configuration de 03)**, groupée par `patient_nbr` : moyenne et écart-type de F1, ROC-AUC, PR-AUC, rappel et précision (`cv_results.csv`).
-3. **Réglage** (`code/07_cv_tuning.py`) : `RandomizedSearchCV`, `n_iter` = min(8, taille de la grille) (au plus 8 tirages ; grille complète pour la régression logistique, 5 tirages, et le KNN, 6), `GroupKFold` à 5 plis, score `average_precision` (PR-AUC), sur le train uniquement. La recherche se fait sur un sous-échantillon stratifié et groupé du train (26 514 lignes, soit un tiers du train, pour tous les modèles sauf KNN ; pour KNN, recherche sur les 20 000 lignes tirées au hasard dans le train). Le meilleur modèle est ensuite réentraîné sur tout le train (79 541 lignes), sauf KNN (20 000 lignes).
-4. **Seuil de décision** : pour chaque modèle réglé, seuil maximisant le F1 sur les prédictions hors-pli (out-of-fold) du train (`thresholds.json`), puis évaluation sur le test à 0,5 et au seuil optimisé.
-5. **Pourquoi l'accuracy est trompeuse.** Sur le test, 2 216 lignes sur 19 802 sont positives : un modèle qui prédit toujours 0 obtiendrait une accuracy de 0,888 (calcul à partir de `y_test.csv`, 1 − 0,112), sans détecter aucun cas. Le KNN réglé à 0,5 a une accuracy de 0,888 mais un rappel de 0,009 ; le KNN de base, 0,879 d'accuracy et 0,045 de rappel. Nous privilégions donc ROC-AUC, PR-AUC, rappel, précision et F1 de la classe 1.
+**Models and baseline configuration** (`code/03_train_models.py`): logistic regression (`max_iter=1000`, C=1 by default), decision tree (`max_depth=12`), random forest (100 trees, `max_depth=18`), KNN (k=5), HistGradientBoosting (default parameters, `early_stopping=False`); `random_state=42`.
 
 ---
 
-## 7. Résultats
+## 6. Evaluation protocol
 
-### 7.1 Modèles de base sur le test (seuil 0,5) — `model_comparison.csv`
+1. **A single test split (20%, patient-grouped)**, never used to choose a model, a hyperparameter or a threshold.
+2. **`GroupKFold` cross-validation with 5 folds on the training set of the baseline models (configuration of 03)**, grouped by `patient_nbr`: mean and standard deviation of F1, ROC-AUC, PR-AUC, recall and precision (`cv_results.csv`).
+3. **Tuning** (`code/07_cv_tuning.py`): `RandomizedSearchCV`, `n_iter` = min(8, grid size) (at most 8 draws; full grid for logistic regression, 5 draws, and for KNN, 6), 5-fold `GroupKFold`, `average_precision` scoring (PR-AUC), on the training set only. The search runs on a stratified, patient-grouped subsample of the training set (26,514 rows, i.e. one third of the training set, for all models except KNN; for KNN, search on the 20,000 rows randomly drawn from the training set). The best model is then refitted on the whole training set (79,541 rows), except KNN (20,000 rows).
+4. **Decision threshold**: for each tuned model, the threshold maximizing F1 on the out-of-fold predictions of the training set (`thresholds.json`), then evaluation on the test set at 0.5 and at the optimized threshold.
+5. **Why accuracy is misleading.** On the test set, 2,216 rows out of 19,802 are positive: a model that always predicts 0 would obtain an accuracy of 0.888 (computed from `y_test.csv`, 1 − 0.112) without detecting any case. The tuned KNN at 0.5 has an accuracy of 0.888 but a recall of 0.009; the baseline KNN has 0.879 accuracy and 0.045 recall. We therefore favor ROC-AUC, PR-AUC, recall, precision and F1 of class 1.
 
-| Modèle | Accuracy | Précision (cl. 1) | Rappel (cl. 1) | F1 (cl. 1) | Acc. équilibrée | ROC-AUC | PR-AUC |
+---
+
+## 7. Results
+
+### 7.1 Baseline models on the test set (threshold 0.5) — `model_comparison.csv`
+
+| Model | Accuracy | Precision (class 1) | Recall (class 1) | F1 (class 1) | Balanced acc. | ROC-AUC | PR-AUC |
 |---|---|---|---|---|---|---|---|
 | Hist Gradient Boosting | 0.662 | 0.181 | 0.571 | 0.275 | 0.623 | 0.670 | 0.227 |
 | Random Forest | 0.668 | 0.180 | 0.552 | 0.271 | 0.617 | 0.662 | 0.197 |
@@ -164,147 +164,147 @@ Le projet encourage explicitement les techniques hors cours ; nous les utilisons
 | Decision Tree | 0.592 | 0.155 | 0.596 | 0.246 | 0.594 | 0.625 | 0.185 |
 | KNN (k=5) | 0.879 | 0.265 | 0.045 | 0.076 | 0.515 | 0.563 | 0.137 |
 
-### 7.2 Validation croisée groupée à 5 plis sur le train (modèles de base) — `cv_results.csv`
+### 7.2 5-fold grouped cross-validation on the training set (baseline models) — `cv_results.csv`
 
-| Modèle | Lignes train | F1 | ROC-AUC | PR-AUC | Rappel | Précision |
+| Model | Train rows | F1 | ROC-AUC | PR-AUC | Recall | Precision |
 |---|---|---|---|---|---|---|
-| Logistic Regression | 79 541 | 0.266 ± 0.007 | 0.647 ± 0.010 | 0.208 ± 0.013 | 0.540 ± 0.016 | 0.176 ± 0.005 |
-| Decision Tree | 79 541 | 0.255 ± 0.005 | 0.622 ± 0.007 | 0.182 ± 0.006 | 0.583 ± 0.013 | 0.163 ± 0.005 |
-| Random Forest | 79 541 | 0.272 ± 0.011 | 0.662 ± 0.011 | 0.200 ± 0.012 | 0.530 ± 0.018 | 0.183 ± 0.008 |
-| KNN | 20 000 | 0.063 ± 0.010 | 0.562 ± 0.008 | 0.143 ± 0.005 | 0.036 ± 0.006 | 0.241 ± 0.035 |
-| Hist Gradient Boosting | 79 541 | 0.279 ± 0.009 | 0.669 ± 0.010 | 0.224 ± 0.014 | 0.571 ± 0.020 | 0.185 ± 0.006 |
+| Logistic Regression | 79,541 | 0.266 ± 0.007 | 0.647 ± 0.010 | 0.208 ± 0.013 | 0.540 ± 0.016 | 0.176 ± 0.005 |
+| Decision Tree | 79,541 | 0.255 ± 0.005 | 0.622 ± 0.007 | 0.182 ± 0.006 | 0.583 ± 0.013 | 0.163 ± 0.005 |
+| Random Forest | 79,541 | 0.272 ± 0.011 | 0.662 ± 0.011 | 0.200 ± 0.012 | 0.530 ± 0.018 | 0.183 ± 0.008 |
+| KNN | 20,000 | 0.063 ± 0.010 | 0.562 ± 0.008 | 0.143 ± 0.005 | 0.036 ± 0.006 | 0.241 ± 0.035 |
+| Hist Gradient Boosting | 79,541 | 0.279 ± 0.009 | 0.669 ± 0.010 | 0.224 ± 0.014 | 0.571 ± 0.020 | 0.185 ± 0.006 |
 
-(Moyenne ± écart-type sur les 5 plis.)
+(Mean ± standard deviation over the 5 folds.)
 
-![Comparaison en validation croisée](../results/figures/cv_comparison.png)
+![Cross-validation comparison](../results/figures/cv_comparison.png)
 
-*Figure 5 — Moyennes et écarts-types en CV. Les barres d'erreur de HGB, RF et LR se recouvrent sur la plupart des métriques, sauf la ROC-AUC entre LR et HGB et le rappel entre RF et HGB ; le KNN (20 000 lignes) est nettement en retrait sur F1, ROC-AUC, PR-AUC et rappel.*
+*Figure 5 — Means and standard deviations in CV. The error bars of HGB, RF and LR overlap on most metrics, except ROC-AUC between LR and HGB and recall between RF and HGB; KNN (20,000 rows) is clearly behind on F1, ROC-AUC, PR-AUC and recall.*
 
-### 7.3 Modèles réglés sur le test — `tuned_comparison.csv`
+### 7.3 Tuned models on the test set — `tuned_comparison.csv`
 
-Hyperparamètres retenus (`best_params.json`, score de recherche = PR-AUC sur le sous-échantillon) :
+Selected hyperparameters (`best_params.json`, search score = PR-AUC on the subsample):
 
-| Modèle | Hyperparamètres | PR-AUC de recherche |
+| Model | Hyperparameters | Search PR-AUC |
 |---|---|---|
-| Logistic Regression | C=0,01 | 0.201 |
+| Logistic Regression | C=0.01 | 0.201 |
 | Decision Tree | max_depth=8, min_samples_leaf=200 | 0.190 |
-| Random Forest | n_estimators=200, max_depth=18, min_samples_leaf=5, max_features=0,1 | 0.201 |
+| Random Forest | n_estimators=200, max_depth=18, min_samples_leaf=5, max_features=0.1 | 0.201 |
 | KNN | n_neighbors=101, weights=distance | 0.204 |
-| Hist Gradient Boosting | learning_rate=0,05, max_iter=100, max_leaf_nodes=15, l2_regularization=10,0 | 0.212 |
+| Hist Gradient Boosting | learning_rate=0.05, max_iter=100, max_leaf_nodes=15, l2_regularization=10.0 | 0.212 |
 
-Seuils optimisés (`thresholds.json`) : LR 0.521 ; DT 0.549 ; RF 0.516 ; KNN 0.117 ; HGB 0.535.
+Optimized thresholds (`thresholds.json`): LR 0.521; DT 0.549; RF 0.516; KNN 0.117; HGB 0.535.
 
-| Modèle | Lignes train | Seuil | Valeur | Accuracy | Précision | Rappel | F1 | Acc. équil. | ROC-AUC | PR-AUC |
+| Model | Train rows | Threshold | Value | Accuracy | Precision | Recall | F1 | Balanced acc. | ROC-AUC | PR-AUC |
 |---|---|---|---|---|---|---|---|---|---|---|
-| Logistic Regression | 79 541 | 0,5 | 0.500 | 0.672 | 0.183 | 0.559 | 0.276 | 0.623 | 0.670 | 0.217 |
-| Logistic Regression | 79 541 | optimisé | 0.521 | 0.708 | 0.192 | 0.503 | 0.278 | 0.618 | 0.670 | 0.217 |
-| Decision Tree | 79 541 | 0,5 | 0.500 | 0.619 | 0.166 | 0.597 | 0.260 | 0.610 | 0.650 | 0.203 |
-| Decision Tree | 79 541 | optimisé | 0.549 | 0.736 | 0.193 | 0.426 | 0.265 | 0.601 | 0.650 | 0.203 |
-| Random Forest | 79 541 | 0,5 | 0.500 | 0.690 | 0.187 | 0.530 | 0.277 | 0.620 | 0.671 | 0.226 |
-| Random Forest | 79 541 | optimisé | 0.516 | 0.726 | 0.200 | 0.482 | 0.283 | 0.620 | 0.671 | 0.226 |
-| KNN | 20 000 | 0,5 | 0.500 | 0.888 | 0.525 | 0.009 | 0.019 | 0.504 | 0.624 | 0.190 |
-| KNN | 20 000 | optimisé | 0.117 | 0.630 | 0.159 | 0.535 | 0.245 | 0.589 | 0.624 | 0.190 |
-| Hist Gradient Boosting | 79 541 | 0,5 | 0.500 | 0.641 | 0.174 | 0.587 | 0.268 | 0.617 | 0.668 | 0.223 |
-| Hist Gradient Boosting | 79 541 | optimisé | 0.535 | 0.717 | 0.194 | 0.484 | 0.277 | 0.615 | 0.668 | 0.223 |
-| KNN (base, k=5) | 79 541 | 0,5 | 0.500 | 0.879 | 0.265 | 0.045 | 0.076 | 0.515 | 0.563 | 0.137 |
+| Logistic Regression | 79,541 | 0.5 | 0.500 | 0.672 | 0.183 | 0.559 | 0.276 | 0.623 | 0.670 | 0.217 |
+| Logistic Regression | 79,541 | optimized | 0.521 | 0.708 | 0.192 | 0.503 | 0.278 | 0.618 | 0.670 | 0.217 |
+| Decision Tree | 79,541 | 0.5 | 0.500 | 0.619 | 0.166 | 0.597 | 0.260 | 0.610 | 0.650 | 0.203 |
+| Decision Tree | 79,541 | optimized | 0.549 | 0.736 | 0.193 | 0.426 | 0.265 | 0.601 | 0.650 | 0.203 |
+| Random Forest | 79,541 | 0.5 | 0.500 | 0.690 | 0.187 | 0.530 | 0.277 | 0.620 | 0.671 | 0.226 |
+| Random Forest | 79,541 | optimized | 0.516 | 0.726 | 0.200 | 0.482 | 0.283 | 0.620 | 0.671 | 0.226 |
+| KNN | 20,000 | 0.5 | 0.500 | 0.888 | 0.525 | 0.009 | 0.019 | 0.504 | 0.624 | 0.190 |
+| KNN | 20,000 | optimized | 0.117 | 0.630 | 0.159 | 0.535 | 0.245 | 0.589 | 0.624 | 0.190 |
+| Hist Gradient Boosting | 79,541 | 0.5 | 0.500 | 0.641 | 0.174 | 0.587 | 0.268 | 0.617 | 0.668 | 0.223 |
+| Hist Gradient Boosting | 79,541 | optimized | 0.535 | 0.717 | 0.194 | 0.484 | 0.277 | 0.615 | 0.668 | 0.223 |
+| KNN (base, k=5) | 79,541 | 0.5 | 0.500 | 0.879 | 0.265 | 0.045 | 0.076 | 0.515 | 0.563 | 0.137 |
 
-La ROC-AUC et la PR-AUC ne dépendent pas du seuil : elles sont identiques pour les deux lignes d'un même modèle.
+ROC-AUC and PR-AUC do not depend on the threshold: they are identical for the two rows of the same model.
 
-### 7.4 Courbes ROC et précision-rappel (test)
+### 7.4 ROC and precision-recall curves (test set)
 
-![Courbes ROC](../results/figures/roc_curves_test.png)
+![ROC curves](../results/figures/roc_curves_test.png)
 
-*Figure 6 — Courbes ROC sur le test. Les modèles de base et réglés (pointillés) de LR, RF et HGB sont presque superposés, nettement au-dessus de la diagonale mais loin de la courbe idéale. L'arbre et le KNN sont en dessous ; la courbe du KNN de base est anguleuse (peu de valeurs de score distinctes).*
+*Figure 6 — ROC curves on the test set. The baseline and tuned (dashed) models of LR, RF and HGB are almost superimposed, clearly above the diagonal but far from the ideal curve. The tree and KNN are below; the baseline KNN curve is angular (few distinct score values).*
 
-![Courbes précision-rappel](../results/figures/pr_curves_test.png)
+![Precision-recall curves](../results/figures/pr_curves_test.png)
 
-*Figure 7 — Courbes précision-rappel sur le test. La précision retombe vers la prévalence (environ 0,11) quand le rappel augmente ; elle ne dépasse 0,4 que pour de très faibles rappels. Le KNN de base est en marches d'escalier.*
+*Figure 7 — Precision-recall curves on the test set. Precision falls back toward the prevalence (about 0.11) as recall increases; it exceeds 0.4 only at very low recall. The baseline KNN curve is staircase-shaped.*
 
-### 7.5 Matrices de confusion
+### 7.5 Confusion matrices
 
-Les matrices de confusion sont dans `results/figures/*_confusion_matrix.png` (modèles de base, seuil 0,5) et `*_tuned_confusion_matrix.png` (modèles réglés, seuil optimisé). Les deux ci-dessous (modèles de base, seuil 0,5) illustrent les cas extrêmes.
+The confusion matrices are in `results/figures/*_confusion_matrix.png` (baseline models, threshold 0.5) and `*_tuned_confusion_matrix.png` (tuned models, optimized threshold). The two below (baseline models, threshold 0.5) illustrate the extreme cases.
 
 ![HGB](../results/figures/hist_gradient_boosting_confusion_matrix.png)
 
-*Figure 8 — HistGradientBoosting (base) : un compromis entre faux positifs et faux négatifs (rappel 0,571, précision 0,181).*
+*Figure 8 — HistGradientBoosting (baseline): a compromise between false positives and false negatives (recall 0.571, precision 0.181).*
 
 ![KNN](../results/figures/knn_confusion_matrix.png)
 
-*Figure 9 — KNN de base : presque tous les séjours sont classés « pas de réadmission » (rappel 0,045).*
+*Figure 9 — Baseline KNN: almost all stays are classified "no readmission" (recall 0.045).*
 
-### 7.6 Importance des variables
+### 7.6 Feature importance
 
-![Importance RF](../results/figures/feature_importance_random_forest.png)
+![RF importance](../results/figures/feature_importance_random_forest.png)
 
-*Figure 10 — Forêt aléatoire de base, 15 variables les plus importantes (importance par impureté). `number_inpatient` domine (environ 0,13), loin devant `discharge_disposition_id_1` (environ 0,04), `num_medications`, `time_in_hospital` et `number_emergency` (environ 0,027 à 0,033). Valeurs lues sur le graphique, non sauvegardées en fichier.*
+*Figure 10 — Baseline random forest, 15 most important features (impurity-based importance). `number_inpatient` dominates (about 0.13), far ahead of `discharge_disposition_id_1` (about 0.04), `num_medications`, `time_in_hospital` and `number_emergency` (about 0.027 to 0.033). Values read from the chart, not saved in a file.*
 
-![Coefficients LR](../results/figures/feature_importance_logistic_regression.png)
+![LR coefficients](../results/figures/feature_importance_logistic_regression.png)
 
-*Figure 11 — Régression logistique, coefficients extrêmes : le graphique est dominé par des codes de diagnostic rares (`diag_1_643`, `diag_3_537`, etc.) avec des coefficients d'environ ±1,5 à ±2,1. Ces modalités sont très rares dans le train (3 à 6 séjours pour les plus forts coefficients positifs, par exemple `diag_1_643` : 4 ; 26 à 48 pour les négatifs affichés) : ces coefficients sont instables (régression logistique de base, C=1 ; ils ne sont pas ceux du modèle réglé, C=0,01, plus régularisé) et ne doivent pas être lus comme des facteurs de risque.*
-
----
-
-## 8. Comparaison et discussion
-
-**Classement des modèles.** Par PR-AUC test (base) : HGB 0.227 > LR 0.213 > RF 0.197 > DT 0.185 > KNN 0.137. Par ROC-AUC test (base) : HGB 0.670 > RF 0.662 > LR 0.656 > DT 0.625 > KNN 0.563. Par F1 test (base) : HGB 0.275 > RF 0.271 > LR 0.266 > DT 0.246 > KNN 0.076. En CV, HGB est également en tête sur F1 (0.279), ROC-AUC (0.669) et PR-AUC (0.224).
-
-**Prudence statistique.** Les écarts entre HGB et RF sont inférieurs à l'écart-type de la CV (ROC-AUC 0.669 ± 0.010 contre 0.662 ± 0.011). HGB devance LR de base d'environ deux écarts-types en ROC-AUC de CV (0.669 contre 0.647), mais sur le test, une fois les deux réglés, l'écart disparaît (régression logistique réglée 0.670 contre HGB réglé 0.668). L'écart-type entre plis n'est pas un test statistique. Le classement entre ces trois modèles n'est donc pas démontré, et le classement des modèles réglés change selon la métrique (RF réglé a la meilleure PR-AUC et le meilleur F1 au seuil optimisé ; LR réglé et HGB réglé sont très proches). Le test est un seul découpage, sans intervalle de confiance. Nous ne désignons pas de gagnant net. Ce que les résultats soutiennent : ces trois modèles forment un groupe d'environ 0,66-0,67 de ROC-AUC, devant l'arbre de décision (0.625 en base, 0.650 réglé) et le KNN.
-
-**Effet du réglage.** Il est modeste et inégal. Entre base et réglé (test) : ROC-AUC LR 0.656 → 0.670, RF 0.662 → 0.671, DT 0.625 → 0.650, HGB 0.670 → 0.668 ; PR-AUC RF 0.197 → 0.226, HGB 0.227 → 0.223. Pour HGB, le réglage ne fait pas mieux que la configuration de base. Les gains de LR, RF et HGB en ROC-AUC (≤ 0,014) sont du même ordre que la variabilité de la CV ; ceux de l'arbre (+0,025 en ROC-AUC) et de la RF en PR-AUC (≈ +0,03) sont plus nets mais restent mesurés sur un seul test ; avec une grille réduite et un sous-échantillon, il ne s'agit pas d'une optimisation poussée.
-
-**Effet du seuil.** Pour LR, DT, RF et HGB, passer de 0,5 au seuil optimisé fait baisser le rappel (LR 0.559 → 0.503, RF 0.530 → 0.482, HGB 0.587 → 0.484, DT 0.597 → 0.426) et monter la précision (LR 0.183 → 0.192, RF 0.187 → 0.200, HGB 0.174 → 0.194, DT 0.166 → 0.193), avec un F1 quasi inchangé (gain de 0.002 à 0.009 pour LR, DT, RF et HGB). Le seuil ne change donc pas la qualité du classement des patients (AUC identique) mais déplace le point de fonctionnement. Choisir le seuil revient à choisir combien d'alertes on accepte de traiter.
-
-**KNN.** Le KNN de base (k=5) prédit presque toujours 0 (rappel 0.045). Le KNN réglé à 0,5 est pire encore (rappel 0.009, précision 0.525) : seules 40 probabilités sur 19 802 dépassent 0,5 sur le test (moyenne 0,109, `knn_tuned_predictions.csv`), soit 21 vrais positifs sur 40 alertes. Son seuil optimisé est très bas (0.117) et il atteint alors un rappel de 0.535 et un F1 de 0.245. La comparaison n'est pas équitable : le KNN réglé n'est entraîné que sur 20 000 lignes tirées au hasard (contre 79 541), et la ligne KNN de `cv_results.csv` correspond au KNN de base (k=5) sur ces mêmes 20 000 lignes. Son score plus bas ne prouve donc pas que la méthode soit moins adaptée à données égales.
-
-**Arbre de décision.** Il est le moins bon des quatre modèles non-KNN en base (ROC-AUC 0.625, PR-AUC 0.185, F1 0.246) et en CV (ROC-AUC 0.622 ± 0.007). Réglé, il progresse (ROC-AUC 0.650) mais reste en dessous des trois autres (0.668 à 0.671).
-
-**Variables importantes.** `number_inpatient` (nombre d'hospitalisations antérieures) est la variable la plus importante pour la forêt et la plus corrélée à la cible (0,165), ce qui est cohérent avec l'EDA. Les résultats ne permettent aucune conclusion causale.
-
-**Niveau de performance.** Les scores sont modestes : ROC-AUC ≈ 0,67 et F1 ≈ 0,28. À l'un des meilleurs réglages, la précision est d'environ 0,2 : environ 4 alertes sur 5 sont de fausses alertes. Le modèle trie mieux que le hasard (ROC-AUC 0,5 ; PR-AUC de référence ≈ 0,11) mais n'est pas assez précis pour décider seul.
+*Figure 11 — Logistic regression, extreme coefficients: the chart is dominated by rare diagnosis codes (`diag_1_643`, `diag_3_537`, etc.) with coefficients of about ±1.5 to ±2.1. These categories are very rare in the training set (3 to 6 stays for the largest positive coefficients, for example `diag_1_643`: 4; 26 to 48 for the negative ones shown): these coefficients are unstable (baseline logistic regression, C=1; they are not those of the tuned model, C=0.01, which is more strongly regularized) and must not be read as risk factors.*
 
 ---
 
-## 9. Limites et éthique
+## 8. Comparison and discussion
 
-- **Scores modestes** (ROC-AUC ≈ 0,67) : les variables disponibles sont faiblement informatives (corrélations de Pearson des variables numériques avec la cible ≤ 0,165).
-- **Un seul découpage test** : pas d'intervalle de confiance sur les scores du test ; les petits écarts entre modèles ne sont pas significatifs.
-- **Réglage limité** : sous-échantillon d'environ 26 500 lignes (un tiers du train), petites grilles, au plus 8 tirages (régression logistique 5, KNN 6).
-- **KNN sur 20 000 lignes** : comparaison non équitable avec les autres modèles.
-- **Seuil choisi sur des modèles à 4/5 du train** : les prédictions hors-pli viennent de modèles entraînés sur 4 plis sur 5, alors que le modèle final est entraîné sur tout le train ; le seuil optimal peut être légèrement décalé.
-- **Séjours répétés** : la CV est groupée par patient, mais les séjours d'un patient restent corrélés et le test reste un seul tirage de patients.
-- **Données de 1999 à 2008**, hôpitaux américains : pratiques, codage et populations ont changé ; pas de représentativité actuelle ni internationale.
-- **Importance par impureté (RF) biaisée** en faveur des variables numériques ou à nombreuses valeurs ; les coefficients de la régression logistique sur des modalités rares sont instables (Figure 11).
-- **Clustering exploratoire** : silhouette faible (0,187) ; les taux de réadmission par cluster sont descriptifs, sans intervalle de confiance, avec des séjours non indépendants.
-- **Variables disponibles au moment de la prédiction** : certaines informations, notamment `discharge_disposition_id` (mode de sortie, très liée au taux de réadmission) ou le nombre de diagnostics, ne sont connues qu'à la sortie. Le modèle ne convient qu'à une prédiction faite au moment de la sortie ; nous n'avons pas fait d'analyse de chaque variable, que le README du projet demande de discuter.
-- **Exclusion des décès et hospices** (2 423 séjours) : la population de test ne contient pas ces patients ; un usage réel devrait les traiter à part.
-- **Valeurs manquantes** : imputation simple (médiane / valeur la plus fréquente) ; plusieurs variables sont presque vides (`weight`, `max_glu_serum`, `A1Cresult`).
-- **Pas de calibration** des probabilités : les scores ne sont pas des probabilités fiables (avec class_weight="balanced", la probabilité moyenne prédite sur le test est d'environ 0,42 à 0,47 selon le modèle (base : arbre 0,420, HGB 0,446, LR 0,448, forêt 0,469 ; réglés : forêt 0,438, arbre 0,461, LR 0,463, HGB 0,463) pour une prévalence de 0,11 ; un seuil optimal bas, comme 0,117 pour le KNN, ne suffit pas à démontrer une mauvaise calibration).
-- **Pas d'analyse d'équité** par sous-groupes (race, âge, sexe) : nous n'avons pas mesuré si les performances diffèrent selon ces groupes.
-- **Éthique** : un modèle de ce type pourrait orienter des ressources de suivi ; sans validation, gouvernance et revue d'experts, il ne doit pas servir à des décisions cliniques réelles.
+**Model ranking.** By test PR-AUC (baseline): HGB 0.227 > LR 0.213 > RF 0.197 > DT 0.185 > KNN 0.137. By test ROC-AUC (baseline): HGB 0.670 > RF 0.662 > LR 0.656 > DT 0.625 > KNN 0.563. By test F1 (baseline): HGB 0.275 > RF 0.271 > LR 0.266 > DT 0.246 > KNN 0.076. In CV, HGB is also first on F1 (0.279), ROC-AUC (0.669) and PR-AUC (0.224).
 
----
+**Statistical caution.** The differences between HGB and RF are smaller than the CV standard deviation (ROC-AUC 0.669 ± 0.010 versus 0.662 ± 0.011). HGB is ahead of baseline LR by about two standard deviations in CV ROC-AUC (0.669 versus 0.647), but on the test set, once both are tuned, the gap disappears (tuned logistic regression 0.670 versus tuned HGB 0.668). The standard deviation across folds is not a statistical test. The ranking among these three models is therefore not demonstrated, and the ranking of the tuned models changes with the metric (tuned RF has the best PR-AUC and the best F1 at the optimized threshold; tuned LR and tuned HGB are very close). The test set is a single split, without a confidence interval. We do not name a clear winner. What the results support: these three models form a group of about 0.66-0.67 ROC-AUC, ahead of the decision tree (0.625 baseline, 0.650 tuned) and KNN.
 
-## 10. Recommandations et pistes d'amélioration
+**Effect of tuning.** It is modest and uneven. Baseline to tuned (test): ROC-AUC LR 0.656 → 0.670, RF 0.662 → 0.671, DT 0.625 → 0.650, HGB 0.670 → 0.668; PR-AUC RF 0.197 → 0.226, HGB 0.227 → 0.223. For HGB, tuning does no better than the baseline configuration. The ROC-AUC gains of LR, RF and HGB (≤ 0.014) are of the same order as the CV variability; those of the tree (+0.025 in ROC-AUC) and of RF in PR-AUC (≈ +0.03) are clearer but are still measured on a single test set; with a reduced grid and a subsample, this is not a thorough optimization.
 
-**Usage.** Au mieux un outil de repérage (screening) qui aide à prioriser le suivi, pas une décision automatique. Le seuil doit être choisi selon la capacité de suivi : un seuil bas détecte davantage de réadmissions (rappel plus élevé) mais génère plus de fausses alertes, et inversement (section 8).
+**Effect of the threshold.** For LR, DT, RF and HGB, moving from 0.5 to the optimized threshold lowers recall (LR 0.559 → 0.503, RF 0.530 → 0.482, HGB 0.587 → 0.484, DT 0.597 → 0.426) and raises precision (LR 0.183 → 0.192, RF 0.187 → 0.200, HGB 0.174 → 0.194, DT 0.166 → 0.193), with F1 almost unchanged (gain of 0.002 to 0.009 for LR, DT, RF and HGB). The threshold therefore does not change how well patients are ranked (identical AUC) but moves the operating point. Choosing the threshold amounts to choosing how many alerts one agrees to handle.
 
-**Priorité métier.** Les patients ayant des antécédents d'hospitalisation (`number_inpatient`) sont ceux pour lesquels le signal est le plus net dans nos résultats. Cette observation est associative, non causale.
+**KNN.** The baseline KNN (k=5) almost always predicts 0 (recall 0.045). The tuned KNN at 0.5 is even worse (recall 0.009, precision 0.525): only 40 probabilities out of 19,802 exceed 0.5 on the test set (mean 0.109, `knn_tuned_predictions.csv`), i.e. 21 true positives out of 40 alerts. Its optimized threshold is very low (0.117) and it then reaches a recall of 0.535 and an F1 of 0.245. The comparison is not fair: the tuned KNN is trained on only 20,000 randomly drawn rows (versus 79,541), and the KNN row of `cv_results.csv` corresponds to the baseline KNN (k=5) on those same 20,000 rows. Its lower score therefore does not prove that the method is less suitable with equal data.
 
-**Pistes d'amélioration (non testées dans ce projet) :**
+**Decision tree.** It is the worst of the four non-KNN models at baseline (ROC-AUC 0.625, PR-AUC 0.185, F1 0.246) and in CV (ROC-AUC 0.622 ± 0.007). Tuned, it improves (ROC-AUC 0.650) but stays below the other three (0.668 to 0.671).
 
-- Création de variables : comorbidités, regroupement des codes diagnostics ICD-9 en grandes familles (les quelque 2 400 colonnes actuelles, dont environ 2 180 pour les trois colonnes de diagnostic, contiennent beaucoup de codes rares), historique du patient.
-- Grilles de réglage plus larges, sur tout le train.
-- Calibration des probabilités.
-- Rééchantillonnage (par exemple SMOTE) à comparer à `class_weight`.
-- Autres boostings (XGBoost, LightGBM).
-- Analyse d'équité par sous-groupes.
-- Validation sur des données plus récentes et sur plusieurs découpages (répétés ou imbriqués) pour obtenir des intervalles de confiance.
+**Important features.** `number_inpatient` (number of prior inpatient stays) is the most important feature for the forest and the most correlated with the target (0.165), which is consistent with the EDA. The results allow no causal conclusion.
+
+**Performance level.** The scores are modest: ROC-AUC ≈ 0.67 and F1 ≈ 0.28. At one of the best settings, precision is about 0.2: about 4 alerts out of 5 are false alarms. The model ranks better than chance (ROC-AUC 0.5; reference PR-AUC ≈ 0.11) but is not precise enough to decide alone.
 
 ---
 
-## 11. Reproductibilité
+## 9. Limitations and ethics
 
-**Ordre d'exécution** (depuis la racine du projet) :
+- **Modest scores** (ROC-AUC ≈ 0.67): the available features are weakly informative (Pearson correlations of the numeric variables with the target ≤ 0.165).
+- **A single test split**: no confidence interval on the test scores; small differences between models are not significant.
+- **Limited tuning**: subsample of about 26,500 rows (one third of the training set), small grids, at most 8 draws (logistic regression 5, KNN 6).
+- **KNN on 20,000 rows**: comparison with the other models is not fair.
+- **Threshold chosen on models trained on 4/5 of the training set**: the out-of-fold predictions come from models trained on 4 folds out of 5, whereas the final model is trained on the whole training set; the optimal threshold may be slightly shifted.
+- **Repeated stays**: CV is grouped by patient, but the stays of a patient remain correlated and the test set remains a single draw of patients.
+- **Data from 1999 to 2008**, US hospitals: practices, coding and populations have changed; not representative of today or of other countries.
+- **Impurity-based importance (RF) is biased** in favor of numeric variables or variables with many values; the logistic regression coefficients on rare categories are unstable (Figure 11).
+- **Exploratory clustering**: low silhouette (0.187); readmission rates per cluster are descriptive, without confidence interval, with non-independent stays.
+- **Features available at prediction time**: some information, notably `discharge_disposition_id` (discharge disposition, strongly related to the readmission rate) or the number of diagnoses, is known only at discharge. The model is only suitable for a prediction made at discharge time; we did not analyze each variable, which the project README asks us to discuss.
+- **Exclusion of deaths and hospice discharges** (2,423 stays): the test population does not contain these patients; a real-world use would have to handle them separately.
+- **Missing values**: simple imputation (median / most frequent value); several variables are almost empty (`weight`, `max_glu_serum`, `A1Cresult`).
+- **No calibration** of the probabilities: the scores are not reliable probabilities (with class_weight="balanced", the mean predicted probability on the test set is about 0.42 to 0.47 depending on the model (baseline: tree 0.420, HGB 0.446, LR 0.448, forest 0.469; tuned: forest 0.438, tree 0.461, LR 0.463, HGB 0.463) for a prevalence of 0.11; a low optimal threshold, such as 0.117 for KNN, is not enough to demonstrate poor calibration).
+- **No fairness analysis** by subgroup (race, age, gender): we did not measure whether performance differs across these groups.
+- **Ethics**: a model of this kind could steer follow-up resources; without validation, governance and expert review, it must not be used for real clinical decisions.
+
+---
+
+## 10. Recommendations and ideas for improvement
+
+**Use.** At best a screening tool that helps prioritize follow-up, not an automatic decision. The threshold should be chosen according to follow-up capacity: a low threshold detects more readmissions (higher recall) but generates more false alarms, and conversely (section 8).
+
+**Practical priority.** Patients with a history of hospitalization (`number_inpatient`) are those for whom the signal is clearest in our results. This observation is associative, not causal.
+
+**Ideas for improvement (not tested in this project):**
+
+- Feature engineering: comorbidities, grouping of ICD-9 diagnosis codes into broad families (the current roughly 2,400 columns, of which about 2,180 come from the three diagnosis columns, contain many rare codes), patient history.
+- Wider tuning grids, on the whole training set.
+- Probability calibration.
+- Resampling (for example SMOTE) to compare with `class_weight`.
+- Other boosting libraries (XGBoost, LightGBM).
+- Fairness analysis by subgroup.
+- Validation on more recent data and on several splits (repeated or nested) to obtain confidence intervals.
+
+---
+
+## 11. Reproducibility
+
+**Execution order** (from the project root):
 
 ```text
 python code/01_explore_data.py
@@ -316,66 +316,66 @@ python code/06_pca_kmeans.py
 python code/07_cv_tuning.py
 ```
 
-Relancer `04` et `05` après `07` pour intégrer les modèles réglés aux matrices de confusion, aux courbes ROC/PR et à la figure de CV (README).
+Rerun `04` and `05` after `07` to include the tuned models in the confusion matrices, the ROC/PR curves and the CV figure (README).
 
-**Versions** (README) : Python 3.14, pandas 3.1.1, numpy 2.5.5, matplotlib 3.11.2, scikit-learn 1.9.1 (scikit-learn >= 1.9 requis pour `PrecisionRecallDisplay.from_predictions(curve_kwargs=...)`).
+**Versions** (README): Python 3.14, pandas 3.1.1, numpy 2.5.5, matplotlib 3.11.2, scikit-learn 1.9.1 (scikit-learn >= 1.9 is required for `PrecisionRecallDisplay.from_predictions(curve_kwargs=...)`).
 
-**Temps de calcul** (mesuré, d'après le README) : `07_cv_tuning.py` a pris environ 10 minutes sur une machine à 22 cœurs, validation croisée comprise. Le temps des autres scripts n'est pas consigné.
+**Computation time** (measured, according to the README): `07_cv_tuning.py` took about 10 minutes on a 22-core machine, cross-validation included. The run time of the other scripts is not recorded.
 
-**Reprise** : chaque résultat de `07` est sauvegardé dans `results/predictions/_state/` avec une empreinte sha256 du code et des étiquettes ; `python code/07_cv_tuning.py --force` recalcule tous les résultats de `07` (à faire après une modification de `02`, car l'empreinte ne couvre pas les tables de variables).
+**Resuming**: each result of `07` is saved in `results/predictions/_state/` with a sha256 fingerprint of the code and of the labels; `python code/07_cv_tuning.py --force` recomputes all results of `07` (to be done after a change to `02`, because the fingerprint does not cover the feature tables).
 
-**Graine aléatoire** : `random_state=42` pour le découpage, les modèles et la recherche.
+**Random seed**: `random_state=42` for the split, the models and the search.
 
-**Fichiers produits** : voir l'annexe.
+**Files produced**: see the appendix.
 
 ---
 
-## Annexe — Fichiers de `results/`
+## Appendix — Files in `results/`
 
-| Fichier | Contenu |
+| File | Content |
 |---|---|
-| `model_comparison.csv` | Métriques test des 5 modèles de base |
-| `cv_results.csv` | Moyenne et écart-type de la CV groupée à 5 plis |
-| `tuned_comparison.csv` | Métriques test des modèles réglés (seuil 0,5 et optimisé) + KNN de base |
-| `best_params.json` | Meilleurs hyperparamètres et score de recherche |
-| `thresholds.json` | Seuils optimisés (F1 hors-pli sur le train) |
-| `eda_summary.txt` | Résumé de l'EDA (fichier complet) |
-| `clustering_summary.txt`, `clustering_summary.csv` | Résumé PCA / K-Means et profil des clusters |
-| `X_train.csv`, `X_test.csv`, `y_train.csv`, `y_test.csv`, `train_groups.csv` | Données issues du découpage |
-| `predictions/` | Prédictions test par modèle (y_true, y_pred, y_proba) ; `_state/` pour la reprise |
-| `figures/` | Graphiques : `eda_*.png`, `readmission_distribution.png`, `pca_*.png`, `kmeans_*.png`, `*_confusion_matrix.png`, `*_tuned_confusion_matrix.png`, `roc_curves_test.png`, `pr_curves_test.png`, `cv_comparison.png`, `comparison_*.png`, `feature_importance_*.png` |
+| `model_comparison.csv` | Test metrics of the 5 baseline models |
+| `cv_results.csv` | Mean and standard deviation of the 5-fold grouped CV |
+| `tuned_comparison.csv` | Test metrics of the tuned models (threshold 0.5 and optimized) + baseline KNN |
+| `best_params.json` | Best hyperparameters and search score |
+| `thresholds.json` | Optimized thresholds (out-of-fold F1 on the training set) |
+| `eda_summary.txt` | EDA summary (full file) |
+| `clustering_summary.txt`, `clustering_summary.csv` | PCA / K-Means summary and cluster profiles |
+| `X_train.csv`, `X_test.csv`, `y_train.csv`, `y_test.csv`, `train_groups.csv` | Data resulting from the split |
+| `predictions/` | Test predictions per model (y_true, y_pred, y_proba); `_state/` for resuming |
+| `figures/` | Charts: `eda_*.png`, `readmission_distribution.png`, `pca_*.png`, `kmeans_*.png`, `*_confusion_matrix.png`, `*_tuned_confusion_matrix.png`, `roc_curves_test.png`, `pr_curves_test.png`, `cv_comparison.png`, `comparison_*.png`, `feature_importance_*.png` |
 
 ---
 
-## Conclusion et références
+## Conclusion and references
 
-Sur 99 343 séjours, les modèles distinguent les réadmissions à 30 jours un peu mieux que le hasard (ROC-AUC ≈ 0,67 pour HGB, RF et LR, dont les écarts sont comparables à la variabilité de la CV), mais avec une précision d'environ 0,2 pour un rappel de 0,5 environ. L'arbre de décision est en retrait et le KNN, entraîné sur moins de données, n'est pas comparable. Les résultats justifient au plus un usage de repérage, avec les limites de la section 9.
+On 99,343 stays, the models distinguish 30-day readmissions somewhat better than chance (ROC-AUC ≈ 0.67 for HGB, RF and LR, whose differences are comparable to the CV variability), but with a precision of about 0.2 for a recall of about 0.5. The decision tree lags behind, and KNN, trained on less data, is not comparable. The results justify at most a screening use, with the limitations of section 9.
 
-**Références.**
+**References.**
 
-- Strack, B. et al. (2014). *Impact of HbA1c Measurement on Hospital Readmission Rates: Analysis of 70,000 Clinical Database Patient Records.* BioMed Research International. Jeu de données UCI : https://archive.ics.uci.edu/dataset/296/diabetes+130+us+hospitals+for+years+1999-2008
-- Documentation scikit-learn (version 1.9.1).
+- Strack, B. et al. (2014). *Impact of HbA1c Measurement on Hospital Readmission Rates: Analysis of 70,000 Clinical Database Patient Records.* BioMed Research International. UCI dataset: https://archive.ics.uci.edu/dataset/296/diabetes+130+us+hospitals+for+years+1999-2008
+- scikit-learn documentation (version 1.9.1).
 
-*Cette référence à Strack et al. est citée de mémoire et n'a pas été vérifiée dans les fichiers du projet ; l'URL du jeu de données vient du README.*
+*This reference to Strack et al. is cited from memory and has not been verified against the project files; the dataset URL comes from the README.*
 
 ---
 
-## Vérifications
+## Verification
 
-Provenance des chiffres :
+Provenance of the figures:
 
-| Chiffres | Fichier source |
+| Figures | Source file |
 |---|---|
-| Tailles, prévalence 11,16 %, manquants, corrélations, taux par modalité, patients | `results/eda_summary.txt` |
-| 2 423 exclus, 99 343 conservés, versions, temps de calcul, 26 500 lignes, 20 000 lignes KNN | `README.md`, `code/02_preprocessing.py` |
-| Effectifs train/test (79 541 / 19 802), positifs (9 098 / 2 216), accuracy « toujours 0 » = 0,888 | `results/y_train.csv`, `results/y_test.csv` (comptage) |
-| Lignes de recherche (26 514 ; 20 000 pour KNN) | `results/best_params.json` (`search_rows`) |
-| KNN réglé : 40 probabilités > 0,5, 21 vrais positifs, moyenne 0,109 ; probabilités moyennes 0,42 à 0,47 (calibration) | `results/predictions/*_predictions.csv` |
-| PCA, silhouette, clusters, rapport 1,85 | `results/clustering_summary.txt`, `results/clustering_summary.csv` |
-| Métriques test de base | `results/model_comparison.csv` |
+| Sizes, 11.16% prevalence, missing values, correlations, rates by category, patients | `results/eda_summary.txt` |
+| 2,423 excluded, 99,343 kept, versions, computation time, 26,500 rows, 20,000 KNN rows | `README.md`, `code/02_preprocessing.py` |
+| Train/test sizes (79,541 / 19,802), positives (9,098 / 2,216), "always 0" accuracy = 0.888 | `results/y_train.csv`, `results/y_test.csv` (counts) |
+| Search rows (26,514; 20,000 for KNN) | `results/best_params.json` (`search_rows`) |
+| Tuned KNN: 40 probabilities > 0.5, 21 true positives, mean 0.109; mean probabilities 0.42 to 0.47 (calibration) | `results/predictions/*_predictions.csv` |
+| PCA, silhouette, clusters, ratio 1.85 | `results/clustering_summary.txt`, `results/clustering_summary.csv` |
+| Baseline test metrics | `results/model_comparison.csv` |
 | CV | `results/cv_results.csv` |
-| Modèles réglés, seuils, KNN de base | `results/tuned_comparison.csv`, `results/best_params.json`, `results/thresholds.json` |
-| Protocole (n_iter = min(8, grille), 5 plis, grilles, `max_depth=12`, etc.) | `code/02_preprocessing.py`, `code/03_train_models.py`, `code/07_cv_tuning.py` |
-| Importances approximatives (RF) et description des figures | Lecture visuelle des PNG dans `results/figures/` |
+| Tuned models, thresholds, baseline KNN | `results/tuned_comparison.csv`, `results/best_params.json`, `results/thresholds.json` |
+| Protocol (n_iter = min(8, grid), 5 folds, grids, `max_depth=12`, etc.) | `code/02_preprocessing.py`, `code/03_train_models.py`, `code/07_cv_tuning.py` |
+| Approximate importances (RF) and description of the figures | Visual reading of the PNG files in `results/figures/` |
 
-Points non tirés de fichiers de résultats : valeurs d'importance RF lues sur le graphique, référence Strack et al. citée de mémoire.
+Items not taken from result files: RF importance values read from the chart, Strack et al. reference cited from memory.
