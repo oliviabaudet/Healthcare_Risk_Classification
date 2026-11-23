@@ -1,4 +1,4 @@
-"""Train four classifiers using the same patient-level split and preprocessing pipelines."""
+"""Train five classifiers using the same patient-level split and preprocessing pipelines."""
 from pathlib import Path
 import pandas as pd
 from sklearn.compose import ColumnTransformer
@@ -7,7 +7,7 @@ from sklearn.impute import SimpleImputer
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
 from sklearn.linear_model import LogisticRegression
 from sklearn.tree import DecisionTreeClassifier
-from sklearn.ensemble import RandomForestClassifier
+from sklearn.ensemble import RandomForestClassifier, HistGradientBoostingClassifier
 from sklearn.neighbors import KNeighborsClassifier
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -23,7 +23,7 @@ NUMERIC_CODE_CATEGORIES = [
 ]
 
 
-def build_preprocessor(X):
+def build_preprocessor(X, dense=False):
     categorical_columns = X.select_dtypes(include=["object", "category", "bool"]).columns.tolist()
     for column in NUMERIC_CODE_CATEGORIES:
         if column in X.columns and column not in categorical_columns:
@@ -38,7 +38,7 @@ def build_preprocessor(X):
 
     categorical_pipeline = Pipeline(steps=[
         ("imputer", SimpleImputer(strategy="most_frequent")),
-        ("encoder", OneHotEncoder(handle_unknown="ignore")),
+        ("encoder", OneHotEncoder(handle_unknown="ignore", sparse_output=not dense)),
     ])
 
     preprocessor = ColumnTransformer(transformers=[
@@ -47,6 +47,49 @@ def build_preprocessor(X):
     ])
 
     return preprocessor
+
+
+def safe_name(model_name):
+    return model_name.lower().replace(" ", "_").replace("-", "_")
+
+
+def make_models():
+    return {
+        "Logistic Regression": LogisticRegression(
+            max_iter=1000, class_weight="balanced", random_state=RANDOM_STATE
+        ),
+        "Decision Tree": DecisionTreeClassifier(
+            class_weight="balanced", random_state=RANDOM_STATE, max_depth=12
+        ),
+        "Random Forest": RandomForestClassifier(
+            n_estimators=100, class_weight="balanced", random_state=RANDOM_STATE,
+            n_jobs=-1, max_depth=18
+        ),
+        "KNN": KNeighborsClassifier(n_neighbors=5),
+        "Hist Gradient Boosting": HistGradientBoostingClassifier(
+            class_weight="balanced", random_state=RANDOM_STATE,
+            early_stopping=False,  # so that max_iter is a real hyperparameter
+        ),
+    }
+
+
+def build_pipeline(model_name, model, X):
+    # HistGradientBoosting does not accept sparse input, so it gets dense one-hot features.
+    preprocessor = build_preprocessor(X, dense=model_name == "Hist Gradient Boosting")
+    return Pipeline(steps=[("preprocessing", preprocessor), ("model", model)])
+
+
+def load_train_test():
+    X_train = pd.read_csv(RESULTS_DIR / "X_train.csv")
+    X_test = pd.read_csv(RESULTS_DIR / "X_test.csv")
+    y_train = pd.read_csv(RESULTS_DIR / "y_train.csv")["target"]
+    y_test = pd.read_csv(RESULTS_DIR / "y_test.csv")["target"]
+    # Convert code-like category columns to strings so they are treated as categories.
+    for column in NUMERIC_CODE_CATEGORIES:
+        if column in X_train.columns:
+            X_train[column] = X_train[column].astype("string")
+            X_test[column] = X_test[column].astype("string")
+    return X_train, X_test, y_train, y_test
 
 
 def main():
@@ -64,51 +107,22 @@ def main():
 
     PREDICTIONS_DIR.mkdir(parents=True, exist_ok=True)
 
-    X_train = pd.read_csv(RESULTS_DIR / "X_train.csv")
-    X_test = pd.read_csv(RESULTS_DIR / "X_test.csv")
-    y_train = pd.read_csv(RESULTS_DIR / "y_train.csv")["target"]
-    y_test = pd.read_csv(RESULTS_DIR / "y_test.csv")["target"]
+    X_train, X_test, y_train, y_test = load_train_test()
 
-    # Convert code-like category columns to strings so they are treated as categories.
-    for column in NUMERIC_CODE_CATEGORIES:
-        if column in X_train.columns:
-            X_train[column] = X_train[column].astype("string")
-            X_test[column] = X_test[column].astype("string")
-
-    models = {
-        "Logistic Regression": LogisticRegression(
-            max_iter=1000, class_weight="balanced", random_state=RANDOM_STATE
-        ),
-        "Decision Tree": DecisionTreeClassifier(
-            class_weight="balanced", random_state=RANDOM_STATE, max_depth=12
-        ),
-        "Random Forest": RandomForestClassifier(
-            n_estimators=100, class_weight="balanced", random_state=RANDOM_STATE,
-            n_jobs=-1, max_depth=18
-        ),
-        "KNN": KNeighborsClassifier(n_neighbors=5),
-    }
-
-    for model_name, model in models.items():
+    for model_name, model in make_models().items():
         print(f"\nTraining {model_name}...")
-        pipeline = Pipeline(steps=[
-            ("preprocessing", build_preprocessor(X_train)),
-            ("model", model),
-        ])
+        pipeline = build_pipeline(model_name, model, X_train)
         pipeline.fit(X_train, y_train)
         predictions = pipeline.predict(X_test)
+        probabilities = pipeline.predict_proba(X_test)[:, 1]
 
-        safe_name = (
-            model_name.lower()
-            .replace(" ", "_")
-            .replace("-", "_")
-        )
         output = pd.DataFrame({
             "y_true": y_test,
             "y_pred": predictions,
+            "y_proba": probabilities,
         })
-        output.to_csv(PREDICTIONS_DIR / f"{safe_name}_predictions.csv", index=False)
-        print(f"Saved predictions to results/predictions/{safe_name}_predictions.csv")
+        output.to_csv(PREDICTIONS_DIR / f"{safe_name(model_name)}_predictions.csv", index=False)
+        print(f"Saved predictions to results/predictions/{safe_name(model_name)}_predictions.csv")
 
     print("\nAll models have been trained and predictions saved.")
     print("Next, run: python code/04_evaluation.py")

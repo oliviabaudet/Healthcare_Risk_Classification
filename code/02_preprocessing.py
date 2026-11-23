@@ -9,17 +9,24 @@ RESULTS_DIR = PROJECT_ROOT / "results"
 PREDICTIONS_DIR = RESULTS_DIR / "predictions"
 RANDOM_STATE = 42
 TEST_SIZE = 0.20
+# Discharge to death / hospice: readmission is impossible or not meaningful, so these stays are excluded.
+EXCLUDED_DISCHARGE_IDS = [11, 13, 14, 19, 20, 21]
 
 
 def main():
     if not DATA_PATH.exists():
-        print("Dataset not found. Run code/01_explore_data.py instructions and place diabetic_data.csv in data/.")
+        print("Dataset not found. Place diabetic_data.csv in data/ (see README.md).")
         return
 
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
     PREDICTIONS_DIR.mkdir(parents=True, exist_ok=True)
 
     df = pd.read_csv(DATA_PATH, na_values=["?"])
+
+    n_before = len(df)
+    df = df[~df["discharge_disposition_id"].isin(EXCLUDED_DISCHARGE_IDS)].copy()
+    print(f"Excluded {n_before - len(df):,} stays discharged to death/hospice "
+          f"(discharge_disposition_id in {EXCLUDED_DISCHARGE_IDS}); {len(df):,} rows kept.")
 
     # Convert the original target into a binary target:
     # 1 = readmitted within 30 days; 0 = not readmitted within 30 days.
@@ -51,6 +58,8 @@ def main():
     X_test.to_csv(RESULTS_DIR / "X_test.csv", index=False)
     y_train.to_frame(name="target").to_csv(RESULTS_DIR / "y_train.csv", index=False)
     y_test.to_frame(name="target").to_csv(RESULTS_DIR / "y_test.csv", index=False)
+    # Patient ids of the training rows (same order as X_train), used for grouped CV in 07_cv_tuning.py.
+    groups.iloc[train_indices].to_frame(name="patient_nbr").to_csv(RESULTS_DIR / "train_groups.csv", index=False)
 
     print("Preprocessing split complete.")
     print(f"Training rows: {len(X_train):,}")

@@ -4,7 +4,8 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from sklearn.metrics import (
     accuracy_score, precision_score, recall_score, f1_score,
-    confusion_matrix, ConfusionMatrixDisplay
+    confusion_matrix, ConfusionMatrixDisplay, balanced_accuracy_score,
+    roc_auc_score, average_precision_score
 )
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -17,7 +18,24 @@ MODEL_FILES = {
     "Decision Tree": "decision_tree_predictions.csv",
     "Random Forest": "random_forest_predictions.csv",
     "KNN": "knn_predictions.csv",
+    "Hist Gradient Boosting": "hist_gradient_boosting_predictions.csv",
 }
+TUNED_FILES = {  # written by 07_cv_tuning.py; uses the threshold chosen on train out-of-fold predictions
+    name: filename.replace("_predictions", "_tuned_predictions") for name, filename in MODEL_FILES.items()
+}
+
+
+def save_confusion_matrix(y_true, y_pred, title, figure_name):
+    matrix = confusion_matrix(y_true, y_pred, labels=[0, 1])
+    display = ConfusionMatrixDisplay(
+        confusion_matrix=matrix,
+        display_labels=["No readmission within 30 days (0)", "Readmission within 30 days (1)"],
+    )
+    display.plot(values_format="d", xticks_rotation=20)
+    plt.title(title)
+    plt.tight_layout()
+    plt.savefig(FIGURES_DIR / figure_name, dpi=150)
+    plt.close()
 
 
 def main():
@@ -43,19 +61,22 @@ def main():
             "Precision (class 1)": precision_score(y_true, y_pred, pos_label=1, zero_division=0),
             "Recall (class 1)": recall_score(y_true, y_pred, pos_label=1, zero_division=0),
             "F1-score (class 1)": f1_score(y_true, y_pred, pos_label=1, zero_division=0),
+            "Balanced accuracy": balanced_accuracy_score(y_true, y_pred),
+            "ROC-AUC": roc_auc_score(y_true, predictions["y_proba"]),
+            "PR-AUC": average_precision_score(y_true, predictions["y_proba"]),
         })
 
-        matrix = confusion_matrix(y_true, y_pred, labels=[0, 1])
-        display = ConfusionMatrixDisplay(
-            confusion_matrix=matrix,
-            display_labels=["No readmission within 30 days (0)", "Readmission within 30 days (1)"],
-        )
-        display.plot(values_format="d", xticks_rotation=20)
-        plt.title(f"Confusion Matrix - {model_name}")
-        plt.tight_layout()
-        figure_name = model_name.lower().replace(" ", "_") + "_confusion_matrix.png"
-        plt.savefig(FIGURES_DIR / figure_name, dpi=150)
-        plt.close()
+        save_confusion_matrix(y_true, y_pred, f"Confusion Matrix - {model_name}",
+                              model_name.lower().replace(" ", "_") + "_confusion_matrix.png")
+
+    # Tuned models at the optimized threshold (only if 07_cv_tuning.py has been run).
+    for model_name, filename in TUNED_FILES.items():
+        if (PREDICTIONS_DIR / filename).exists():
+            tuned = pd.read_csv(PREDICTIONS_DIR / filename)
+            save_confusion_matrix(
+                tuned["y_true"], tuned["y_pred_optimized"],
+                f"Confusion Matrix - {model_name} (tuned, optimized threshold)",
+                model_name.lower().replace(" ", "_") + "_tuned_confusion_matrix.png")
 
     results = pd.DataFrame(metrics_rows).sort_values(by="F1-score (class 1)", ascending=False)
     output_path = RESULTS_DIR / "model_comparison.csv"

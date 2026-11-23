@@ -26,8 +26,10 @@ results/X_train.csv
 results/X_test.csv
 results/y_train.csv
 results/y_test.csv
+results/train_groups.csv
 results/predictions/
 
 # Keep evaluation results and figures
 # results/model_comparison.csv
 # results/figures/
+drive-download-*.zip
