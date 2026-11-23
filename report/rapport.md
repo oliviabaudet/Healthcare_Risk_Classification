@@ -1,6 +1,6 @@
 # Prédiction de la réadmission à 30 jours de patients diabétiques
 
-Projet du cours [intitulé du cours à compléter] — [auteurs à compléter].
+Projet du cours Machine Learning - Paolo, Granace et Olivia
 
 Projet à but pédagogique : ce n'est pas un outil médical validé.
 
